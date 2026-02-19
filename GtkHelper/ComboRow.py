@@ -1,10 +1,19 @@
 import gi
+import threading
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw, Gio, GObject
+from gi.repository import Gtk, Adw, Gio, GObject, GLib
 
 from loguru import logger as log
+
+def _gtk_call(func, *args):
+    """Run func(*args) on the GTK main thread. If already on the main thread,
+    call synchronously; otherwise schedule via GLib.idle_add."""
+    if threading.current_thread() is threading.main_thread():
+        func(*args)
+    else:
+        GLib.idle_add(func, *args)
 
 class BaseComboRowItem(GObject.GObject):
     def __init__(self):
@@ -61,7 +70,7 @@ class ComboRow(Adw.ComboRow):
         Description:
             This constructor sets up a ComboRow with the given list of items, allowing for interaction with the row
             via search functionality and item selection. It connects a signal list item factory to customize the appearance
-            and behavior of the list items. The combo row’s model is populated with the given items, and the default
+            and behavior of the list items. The combo row's model is populated with the given items, and the default
             selection is set based on the provided index.
 
             The method also sets up the filter expression for the search functionality and adds the items to the combo row.
@@ -115,12 +124,12 @@ class ComboRow(Adw.ComboRow):
         if isinstance(combo_row_item, str):
             combo_row_item = ComboRowItem(combo_row_item)
 
-        self.model.append(combo_row_item)
+        _gtk_call(self.model.append, combo_row_item)
 
     def add_items(self, items: list[BaseComboRowItem] | list[str]):
         converted_list = self.convert_item_list(items)
 
-        self.model.splice(self.model.get_n_items(), 0, converted_list)
+        _gtk_call(self.model.splice, self.model.get_n_items(), 0, converted_list)
 
     def remove_item_at_index(self, index: int):
         size = self.model.get_n_items()
@@ -129,7 +138,7 @@ class ComboRow(Adw.ComboRow):
             log.error(f"Not able to remove Item at index: {index}. Out of range!")
             return
 
-        self.model.remove(index)
+        _gtk_call(self.model.remove, index)
 
     def remove_item(self, item: BaseComboRowItem | str):
         for index in range(self.model.get_n_items()):
@@ -145,10 +154,10 @@ class ComboRow(Adw.ComboRow):
             return
 
         for i in range(amount + 1):
-            self.model.remove(start)
+            _gtk_call(self.model.remove, start)
 
     def remove_all_items(self):
-        self.model.remove_all()
+        _gtk_call(self.model.remove_all)
 
     def get_item_at(self, index: int) -> BaseComboRowItem:
         return self.model.get_item(index)
